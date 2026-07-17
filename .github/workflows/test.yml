@@ -26,11 +26,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Set up Swift
-      - name: Set up Swift
-        uses: fwal/setup-swift@v2
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
         with:
-          swift-version: '6.1' # Adjust to your Swift version
+          xcode-version: latest-stable
 
       # Restore cached Fixtures folder
       - name: Restore Fixtures cache
