@@ -195,8 +195,11 @@ public extension DMXValue {
     }
 
     init(from rawValue: String) {
-        let split: [Int] = rawValue.split(separator: "/").map { Int($0) ?? 0 }
-        self.init(value: split[0], byteCount: split[1])
+        let parts = rawValue.split(separator: "/")
+        let value = parts.first.flatMap { Int($0) } ?? 0
+        // The byte-count component may carry an "s" suffix (byte-shifting form, e.g. "255/1s").
+        let byteCount = parts.count > 1 ? (Int(parts[1].filter(\.isNumber)) ?? 1) : 1
+        self.init(value: value, byteCount: byteCount)
     }
 }
 
@@ -213,13 +216,19 @@ public struct ColorCIE: Codable {
 }
 
 extension ColorCIE {
-    init(from rawValue: String) {        
-        let split: [Double] = rawValue.split(separator: ",").map { Double($0) ?? 0 }
-        
+    init(from rawValue: String) {
+        let split = rawValue.split(separator: ",").map { Double($0.trimmingCharacters(in: .whitespaces)) ?? 0 }
+
+        // "None" or a malformed value falls back to the white point rather than crashing.
+        guard split.count >= 2 else {
+            self = ColorCIE(x: 0.3127, y: 0.3290, Y: 1.0)
+            return
+        }
+
         self.x = split[0]
         self.y = split[1]
-        
-        if (split.count == 3) {
+
+        if split.count >= 3 {
             self.Y = split[2] > 1 ? split[2] / 100 : split[2]
         } else {
             self.Y = 1.0
@@ -232,20 +241,27 @@ public struct Rotation: Codable {
 }
 
 extension Rotation {
+    static let identity: [[Double]] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+
     init(from rawValue: String) {
+        // "None" is a legal rotationtype value.
+        guard rawValue != "None" else {
+            self.matrix = Rotation.identity
+            return
+        }
+
         var strMatrix = rawValue
         strMatrix = strMatrix.replacingOccurrences(of: "}{", with: ",")
         strMatrix = strMatrix.replacingOccurrences(of: "{", with: "")
         strMatrix = strMatrix.replacingOccurrences(of: "}", with: "")
-        
-        let flatMatrix: [Double] = strMatrix.split(separator: ",").map{ Double($0) ?? 0 }
-        assert(flatMatrix.count == 9)
 
-        /// convert 1D array into 3x3 2D array (matrix)
-        let matrix: [[Double]] = stride(from: 0, to: flatMatrix.count,by: 3)
-                                    .map{ Array(flatMatrix[$0..<$0 + 3]) }
-        
-        self.matrix = matrix
+        let flatMatrix: [Double] = strMatrix.split(separator: ",").map { Double($0) ?? 0 }
+        guard flatMatrix.count == 9 else {
+            self.matrix = Rotation.identity
+            return
+        }
+
+        self.matrix = stride(from: 0, to: flatMatrix.count, by: 3).map { Array(flatMatrix[$0..<$0 + 3]) }
     }
 }
 

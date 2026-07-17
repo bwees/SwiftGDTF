@@ -87,7 +87,7 @@ public struct FixtureAttribute: Codable {
 }
 
 public struct SubPhysicalUnit: Codable {
-    public var type: SubPhysicalType
+    public var type: SubPhysicalType?
     public var physicalUnit: PhysicalUnit = .none
     public var physicalFrom: Double = 0
     public var physicalTo: Double = 1
@@ -280,7 +280,7 @@ public struct SubChannelSet: Codable {
     public var name: String
     public var physicalFrom: Double
     public var physicalTo: Double
-    public var subPhysicalUnit: SubPhysicalUnit
+    public var subPhysicalUnit: SubPhysicalUnit?
     public var wheelSlotIndex: Int?
     public var dmxProfile: DMXProfile?
 }
