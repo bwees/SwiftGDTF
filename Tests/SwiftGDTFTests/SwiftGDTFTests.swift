@@ -29,14 +29,14 @@ struct Credentials {
 // MARK: - Fixture
 
 struct Fixture: Decodable {
-    var uuid: String
+    var uuid: String?
     var rid: Int
     var fixture: String
     var manufacturer: String
     var creationDate: Int
-    
+
     func filename() -> String {
-        return "\(self.fixture)_\(self.manufacturer)_\(self.uuid).gdtf".replacingOccurrences(of: "/", with: "_")
+        return "\(self.fixture)_\(self.manufacturer)_\(self.uuid ?? "unknown").gdtf".replacingOccurrences(of: "/", with: "_")
     }
 }
 
@@ -135,12 +135,13 @@ class GDTFDownloader {
         var latestByUUID: [String: Fixture] = [:]
 
         for fixture in responseObj.list {
-            if let existing = latestByUUID[fixture.uuid] {
+            guard let uuid = fixture.uuid else { continue }   // skip entries with no uuid (can't be downloaded)
+            if let existing = latestByUUID[uuid] {
                 if fixture.creationDate > existing.creationDate {
-                    latestByUUID[fixture.uuid] = fixture
+                    latestByUUID[uuid] = fixture
                 }
             } else {
-                latestByUUID[fixture.uuid] = fixture
+                latestByUUID[uuid] = fixture
             }
         }
 
