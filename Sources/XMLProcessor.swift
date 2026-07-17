@@ -34,8 +34,8 @@ extension FixtureType: XMLDecodable {
         guard let element = xml.element else { throw XMLParsingError.elementMissing }
         
         self.name = try element.attribute(named: "Name").text
-        self.shortName = try element.attribute(named: "ShortName").text
-        self.longName = try element.attribute(named: "LongName").text
+        self.shortName = element.attribute(by: "ShortName")?.text ?? ""
+        self.longName = element.attribute(by: "LongName")?.text ?? ""
         self.manufacturer = try element.attribute(named: "Manufacturer").text
         self.description = try element.attribute(named: "Description").text
         self.fixtureTypeID = try element.attribute(named: "FixtureTypeID").uuid
@@ -54,8 +54,8 @@ extension FixtureInfo: XMLDecodable {
         guard let element = xml.element else { throw XMLParsingError.elementMissing }
 
         self.name = try element.attribute(named: "Name").text
-        self.shortName = try element.attribute(named: "ShortName").text
-        self.longName = try element.attribute(named: "LongName").text
+        self.shortName = element.attribute(by: "ShortName")?.text ?? ""
+        self.longName = element.attribute(by: "LongName")?.text ?? ""
         self.manufacturer = try element.attribute(named: "Manufacturer").text
         self.description = try element.attribute(named: "Description").text
         self.fixtureTypeID = try element.attribute(named: "FixtureTypeID").text
@@ -142,8 +142,8 @@ extension SubPhysicalUnit: XMLDecodable {
         self.physicalTo = element.attribute(by: "PhysicalTo")?.double ?? 1
         
         self.physicalUnit = (try? element.attribute(by: "PhysicalUnit")?.toEnum()) ?? .none
-        
-        self.type = try element.attribute(named: "Type").toEnum()
+
+        self.type = try? element.attribute(by: "Type")?.toEnum()
     }
 }
 
@@ -165,8 +165,8 @@ extension Slot: XMLDecodableWithIndex {
         guard let element = xml.element else { throw XMLParsingError.elementMissing }
         
         self.name = try element.attribute(named: "Name").text
-        self.color = try ColorCIE(from: element.attribute(named: "Color").text)
-        
+        self.color = element.attribute(by: "Color").map { ColorCIE(from: $0.text) } ?? ColorCIE(x: 0.3127, y: 0.3290, Y: 1.0)
+
         self.filter = try element.attribute(by: "Filter")?.resolveNode(base: tree["PhysicalDescriptions"]["Filters"], tree: tree)
         
         self.mediaFileName = FileResource(name: element.attribute(by: "MediaFileName")?.text, fileExtension: "png")
@@ -223,8 +223,8 @@ extension Emitter: XMLDecodable {
         guard let element = xml.element else { throw XMLParsingError.elementMissing }
         self.name = try element.attribute(named: "Name").text
         
-        self.color = try ColorCIE(from: element.attribute(named: "Color").text)
-        self.dominantWavelength = try element.attribute(named: "DominantWaveLength").double
+        self.color = element.attribute(by: "Color").map { ColorCIE(from: $0.text) }
+        self.dominantWavelength = element.attribute(by: "DominantWaveLength")?.double
 
         
         self.diodePart = element.attribute(by: "DiodePart")?.text
@@ -264,8 +264,8 @@ extension Filter: XMLDecodable {
         guard let element = xml.element else { throw XMLParsingError.elementMissing }
         
         self.name = try element.attribute(named: "Name").text
-        self.color = try ColorCIE(from: element.attribute(named: "Color").text)
-        
+        self.color = element.attribute(by: "Color").map { ColorCIE(from: $0.text) } ?? ColorCIE(x: 0.3127, y: 0.3290, Y: 1.0)
+
         self.measurements = try xml.parseChildrenToArray(tree: tree)
     }
 }
@@ -275,7 +275,13 @@ extension ColorSpace: XMLDecodable {
         guard let element = xml.element else { throw XMLParsingError.elementMissing }
         
         self.name = element.attribute(by: "Name")?.text ?? "Default"
-        self.mode = try element.attribute(named: "Mode").toEnum()
+        self.mode = (try? element.attribute(by: "Mode")?.toEnum()) ?? .srgb
+
+        // Custom-gamut primaries (used when Mode = Custom).
+        self.red = element.attribute(by: "Red").map { ColorCIE(from: $0.text) }
+        self.green = element.attribute(by: "Green").map { ColorCIE(from: $0.text) }
+        self.blue = element.attribute(by: "Blue").map { ColorCIE(from: $0.text) }
+        self.whitePoint = element.attribute(by: "WhitePoint").map { ColorCIE(from: $0.text) }
     }
 }
 
@@ -283,7 +289,7 @@ extension DMXProfile: XMLDecodable {
     init(xml: XMLIndexer, tree: XMLIndexer) throws {
         guard let element = xml.element else { throw XMLParsingError.elementMissing }
         
-        self.name = try element.attribute(named: "Name").text
+        self.name = element.attribute(by: "Name")?.text ?? ""
         self.points = try xml.parseChildrenToArray(tree: tree)
     }
 }
@@ -292,12 +298,12 @@ extension Point: XMLDecodable {
     init(xml: XMLIndexer, tree: XMLIndexer) throws {
         guard let element = xml.element else { throw XMLParsingError.elementMissing }
         
-        self.dmxPercentage = try Double(element.attribute(named: "DMXPercentage").text) ?? 0
-        
-        self.cfc0 = try element.attribute(named: "CFC0").double ?? 0
-        self.cfc1 = try element.attribute(named: "CFC1").double ?? 0
-        self.cfc2 = try element.attribute(named: "CFC2").double ?? 0
-        self.cfc3 = try element.attribute(named: "CFC3").double ?? 0
+        self.dmxPercentage = element.attribute(by: "DMXPercentage")?.double ?? 0
+
+        self.cfc0 = element.attribute(by: "CFC0")?.double ?? 0
+        self.cfc1 = element.attribute(by: "CFC1")?.double ?? 0
+        self.cfc2 = element.attribute(by: "CFC2")?.double ?? 0
+        self.cfc3 = element.attribute(by: "CFC3")?.double ?? 0
     }
 }
 
@@ -348,14 +354,10 @@ extension DMXChannel: XMLDecodable {
 
         // TODO: Handle overrides from geometry nodes
         
-        if let dmxBreak = element.attribute(by: "DMXBreak") {
-            self.dmxBreak = dmxBreak.int ?? 0
-            
-            if dmxBreak.text != "None" {
-                self.offset = dmxBreak.text.split(separator: ",").map { Int($0) ?? 0 }
-            }
-        } else {
-            self.dmxBreak = 0
+        self.dmxBreak = element.attribute(by: "DMXBreak")?.int ?? 1
+
+        if let offset = element.attribute(by: "Offset"), offset.text != "None" {
+            self.offset = offset.text.split(separator: ",").map { Int($0) ?? 0 }
         }
         
         
@@ -409,7 +411,7 @@ extension LogicalChannel: XMLDecodable {
         self.snap = (try? element.attribute(by: "Snap")?.toEnum()) ?? .no
         self.master = (try? element.attribute(by: "Master")?.toEnum()) ?? .none
         
-        self.mibFade = element.attribute(by: "MIBFade")?.double ?? 0
+        self.mibFade = (element.attribute(by: "MibFade") ?? element.attribute(by: "MIBFade"))?.double ?? 0
         self.dmxChangeTimeLimit = element.attribute(by: "DMXChangeTimeLimit")?.double ?? 0
         
         self.channelFunctions = try xml.parseChildrenToArray(tree: tree)
@@ -446,8 +448,8 @@ extension ChannelFunction: XMLDecodableWithIndex {
         // Filter
         self.filter = try element.attribute(by: "Filter")?.resolveNode(base: tree["PhysicalDescriptions"]["Filters"], tree: tree)
         
-        // ColorSpace
-        self.colorSpace = try element.attribute(by: "ColorSpace")?.resolveNode(base: tree["PhysicalDescriptions"]["AdditionalColorSpaces"], tree: tree)
+        // ColorSpace (default child or an AdditionalColorSpaces entry)
+        self.colorSpace = try? element.attribute(by: "ColorSpace")?.resolveNode(base: tree["PhysicalDescriptions"], tree: tree)
         
         // Mode Master
         self.modeMaster = element.attribute(by: "ModeMaster")?.text
@@ -458,7 +460,7 @@ extension ChannelFunction: XMLDecodableWithIndex {
         }
         
         // DMX Profile
-        self.dmxProfile = try? element.attribute(by: "DMXProfile")?.resolveNode(base: tree["DMXProfiles"], tree: tree)
+        self.dmxProfile = try? element.attribute(by: "DMXProfile")?.resolveNode(base: tree["PhysicalDescriptions"]["DMXProfiles"], tree: tree)
         
         self.minimum = element.attribute(by: "Min")?.double ?? self.physicalFrom
         self.maximum = element.attribute(by: "Max")?.double ?? self.physicalTo
@@ -498,16 +500,16 @@ extension SubChannelSet: XMLDecodableWithParent {
         self.physicalFrom = (try? element.attribute(named: "PhysicalFrom"))?.double ?? 0
         self.physicalTo = (try? element.attribute(named: "PhysicalTo"))?.double ?? 1
         
-        // needs the parent
-        guard let attributeName = try parent.element?.attribute(named: "Attribute") else {
-            throw XMLParsingError.attributeMissing(named: "Attribute", on: parent.element)
+        // SubPhysicalUnit is optional; resolve it against the parent function's attribute.
+        if let subPhysical = element.attribute(by: "SubPhysicalUnit"),
+           let attributeName = parent.element?.attribute(by: "Attribute") {
+            let associatedAttribute = try tree["AttributeDefinitions"]["Attributes"].findChild(with: "Name", being: attributeName.text)
+            self.subPhysicalUnit = try subPhysical.resolveNode(base: associatedAttribute, tree: tree)
+        } else {
+            self.subPhysicalUnit = nil
         }
-        
-        let associatedAttribute = try tree["AttributeDefinitions"]["Attributes"].findChild(with: "Name", being: attributeName.text)
 
-        self.subPhysicalUnit = try element.attribute(named: "SubPhysicalUnit").resolveNode(base: associatedAttribute, tree: tree)
-        
-        self.dmxProfile = try? element.attribute(named: "DMXProfile").resolveNode(base: tree["DMXProfiles"], tree: tree)
+        self.dmxProfile = try? element.attribute(by: "DMXProfile")?.resolveNode(base: tree["PhysicalDescriptions"]["DMXProfiles"], tree: tree)
     }
 }
 
