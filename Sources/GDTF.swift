@@ -31,6 +31,11 @@ public struct FixtureType: Codable {
     public var wheels: [Wheel]
     public var physicalDescriptions: PhysicalDescriptions?
     public var dmxModes: [DMXMode]
+
+    /// The `<Models>` catalog (referenced by geometry `model`).
+    public var models: [Model]
+    /// The top-level `<Geometries>` tree.
+    public var geometries: [GDTFGeometry]
 }
 
 // this is an identical copy to FixtureType but only includes top level attributes
@@ -213,6 +218,15 @@ public struct DMXMode: Codable {
     public var channels: [DMXChannel]
     public var relations: [Relation]
     public var macros: [Macro]
+
+    /// Full per-cell channel list once `<GeometryReference>`s are expanded into
+    /// their cells' DMX slices. `nil` when the mode instantiates no cells (its
+    /// literal `channels` are already the complete list). Optional so previously
+    /// persisted mode JSON still decodes.
+    public var flattenedChannels: [DMXChannel]?
+    /// One entry per instantiated `<GeometryReference>`, with its position and
+    /// shifted channels. `nil` when the mode has no geometry references.
+    public var cells: [GeometryCell]?
 }
 
 public struct DMXChannel: Codable {

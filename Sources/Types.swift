@@ -60,7 +60,7 @@ public enum ColorSpaceMode: String, Codable {
     case ansi = "ANSI"
 }
 
-public enum PrimitiveType: String, Codable {
+public enum PrimitiveType: String, Codable, Sendable {
     case undefined = "Undefined"
     case cube = "Cube"
     case cylinder = "Cylinder"
@@ -115,7 +115,7 @@ public enum ComponentType: String, Codable {
     case networkInOut = "NetworkInOut"
 }
 
-public enum BeamType: String, Codable {
+public enum BeamType: String, Codable, Sendable {
     case wash = "Wash"
     case spot = "Spot"
     case none = "None"
@@ -171,7 +171,7 @@ public struct DMXValue: Codable {
     public var byteCount: Int
     
     public var maxValue: Int {
-        return Int(powl(2, 8*Double(byteCount))) - 1
+        return Int(pow(2.0, 8 * Double(byteCount))) - 1
     }
     
     public var bytes: [UInt8] {
@@ -189,7 +189,7 @@ public struct DMXValue: Codable {
 
 public extension DMXValue {
     init(_ percentage: Double, byteCount: Int) {
-        let maxValue = powl(2, 8*Double(byteCount)) - 1
+        let maxValue = pow(2.0, 8 * Double(byteCount)) - 1
 
         self.init(value: Int(percentage.constrain(min: 0, max: 1) * maxValue), byteCount: byteCount)
     }
@@ -265,30 +265,36 @@ extension Rotation {
     }
 }
 
-public struct Matrix: Codable {
+public struct Matrix: Codable, Sendable {
     public var matrix: [[Double]] = [
         [1, 0, 0, 0],
         [0, 1, 0, 0],
         [0, 0, 1, 0],
         [0, 0, 0, 1],
     ]
+
+    public init() {}
 }
 
 extension Matrix {
     init(from rawValue: String) {
+        self.init()
+
+        // "None" is a legal matrixtype value; fall back to identity.
+        guard rawValue != "None" else { return }
+
         var strMatrix = rawValue
         strMatrix = strMatrix.replacingOccurrences(of: "}{", with: ",")
         strMatrix = strMatrix.replacingOccurrences(of: "{", with: "")
         strMatrix = strMatrix.replacingOccurrences(of: "}", with: "")
-        
+
         let flatMatrix: [Double] = strMatrix.split(separator: ",").map{ Double($0) ?? 0 }
-        assert(flatMatrix.count == 16)
-        
-        /// convert 1D array into 3x3 2D array (matrix)
-        let matrix: [[Double]] = stride(from: 0, to: flatMatrix.count,by: 4)
-                                    .map{ Array(flatMatrix[$0..<$0 + 4]) }
-        
-        self.matrix = matrix
+
+        // Malformed matrix falls back to identity rather than crashing.
+        guard flatMatrix.count == 16 else { return }
+
+        self.matrix = stride(from: 0, to: flatMatrix.count, by: 4)
+            .map { Array(flatMatrix[$0..<$0 + 4]) }
     }
 }
 

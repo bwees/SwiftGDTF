@@ -73,7 +73,7 @@ extension XMLAttribute {
                 // otherwise we need to look for ChannelFunction for the name
                 if let initialFunction = try? childElement.attribute(named: "InitialFunction").text {
                     let initialFunctionParts = initialFunction.components(separatedBy: ".")
-                    guard initialFunctionParts.count == 3 else {
+                    guard initialFunctionParts.count >= 3 else {
                         throw XMLParsingError.initialFunctionPathInvalid
                     }
                                     
@@ -162,8 +162,16 @@ extension XMLIndexer {
         }) else {
             throw XMLParsingError.childNotFound(named: attributeName + " == " + match, at: self.element?.text ?? "")
         }
-                
+
         return child
+    }
+
+    /// Resolve an optional single-name (`nametype`) reference by exact `Name` match; nil when
+    /// the reference is absent or empty. Unlike `resolveNode`, it does NOT split on "." — GDTF
+    /// names may legally contain a period (the nametype char range spans it).
+    func resolveNamed<T: XMLDecodable>(_ ref: XMLAttribute?, tree fullTree: XMLIndexer) throws -> T? {
+        guard let name = ref?.text, !name.isEmpty else { return nil }
+        return try findChild(with: "Name", being: name).parse(tree: fullTree)
     }
     
     func firstChild() throws -> XMLIndexer {

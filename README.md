@@ -8,7 +8,7 @@ This library:
   - We cannot resolve the following nodes, they are currently represented as a String:
     - `modeMaster` in `ChannelFunction`
     - `mainAttribute` in `FixtureAttribute`
-- Does not currenty parse Geometries (and geometry tags in other elements), Models, FTPresets, or Protocols nodes currently, if you would like to add support, submit a PR!
+- Does not currenty parse FTPresets, or Protocols nodes currently, if you would like to add support, submit a PR!
 
 ## Installation
 Install with SPM with the following:

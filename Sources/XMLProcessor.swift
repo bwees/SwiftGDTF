@@ -45,7 +45,16 @@ extension FixtureType: XMLDecodable {
         self.attributeDefinitions = try xml["AttributeDefinitions"].parse(tree: tree)
         self.physicalDescriptions = try xml["PhysicalDescriptions"].parse(tree: tree)
         self.wheels = try xml["Wheels"].parseChildrenToArray(tree: tree)
-        self.dmxModes = try xml["DMXModes"].parseChildrenToArray(tree: tree)
+
+        self.models = try xml["Models"].parseChildrenToArray(tree: tree)
+        self.geometries = try xml["Geometries"].parseChildrenToArray(tree: tree)
+
+        // Expand each mode's GeometryReferences into per-cell channels.
+        var dmxModes: [DMXMode] = try xml["DMXModes"].parseChildrenToArray(tree: tree)
+        for index in dmxModes.indices {
+            dmxModes[index].applyGeometryExpansion(geometries: self.geometries)
+        }
+        self.dmxModes = dmxModes
     }
 }
 
@@ -110,9 +119,8 @@ extension FixtureAttribute: XMLDecodable {
         self.pretty = try element.attribute(named: "Pretty").text
         
         // Resolve ActivationGroup Node
-        self.activationGroup = try element.attribute(by: "ActivationGroup")?.resolveNode(
-            base: tree["AttributeDefinitions"]["ActivationGroups"],
-            tree: tree)
+        self.activationGroup = try tree["AttributeDefinitions"]["ActivationGroups"].resolveNamed(
+            element.attribute(by: "ActivationGroup"), tree: tree)
 
         // Resolve Feature Node
         self.feature = try element.attribute(by: "Feature")?.resolveNode(
@@ -167,7 +175,7 @@ extension Slot: XMLDecodableWithIndex {
         self.name = try element.attribute(named: "Name").text
         self.color = element.attribute(by: "Color").map { ColorCIE(from: $0.text) } ?? ColorCIE(x: 0.3127, y: 0.3290, Y: 1.0)
 
-        self.filter = try element.attribute(by: "Filter")?.resolveNode(base: tree["PhysicalDescriptions"]["Filters"], tree: tree)
+        self.filter = try tree["PhysicalDescriptions"]["Filters"].resolveNamed(element.attribute(by: "Filter"), tree: tree)
         
         self.mediaFileName = FileResource(name: element.attribute(by: "MediaFileName")?.text, fileExtension: "png")
         self.facets = try xml.filterChildren({ child, _ in child.name == "Facet"}).parseChildrenToArray(tree: tree)
@@ -343,6 +351,10 @@ extension DMXMode: XMLDecodable {
         self.channels = try xml["DMXChannels"].parseChildrenToArray(tree: tree)
         self.relations = try xml["Relations"].parseChildrenToArray(parent: xml, tree: tree)
         self.macros = try xml["FTMacros"].parseChildrenToArray(parent: xml, tree: tree)
+
+        // Populated later by applyGeometryExpansion when the mode instantiates cells.
+        self.flattenedChannels = nil
+        self.cells = nil
     }
 }
 
@@ -371,17 +383,21 @@ extension DMXChannel: XMLDecodable {
         if element.attribute(by: "InitialFunction") != nil {
             let path = element.attribute(by: "InitialFunction")!.text
             let initialFunctionParts = path.components(separatedBy: ".")
-            
-            guard initialFunctionParts.count == 3 else { throw XMLParsingError.initialFunctionPathInvalid}
-            
-            self.name = initialFunctionParts.first
-            
+
+            guard initialFunctionParts.count >= 3 else { throw XMLParsingError.initialFunctionPathInvalid }
+
+            // Path is Geometry.Attribute.ChannelFunction; the geometry name itself may contain
+            // "." (a legal nametype char), so take the last two segments from the end.
+            let functionAttribute = initialFunctionParts[initialFunctionParts.count - 2]
+            let functionName = initialFunctionParts[initialFunctionParts.count - 1]
+            self.name = initialFunctionParts[0..<(initialFunctionParts.count - 2)].joined(separator: ".")
+
             let foundInitial: ChannelFunction? = try xml
                 .filterChildren({ child, _ in
-                    return (try? child.attribute(named: "Attribute").text == initialFunctionParts[1]) ?? false
+                    return (try? child.attribute(named: "Attribute").text == functionAttribute) ?? false
                 }).children.first?
                 .filterChildren({child, _ in
-                    return (try? child.attribute(named: "Name").text == initialFunctionParts[2]) ?? false
+                    return (try? child.attribute(named: "Name").text == functionName) ?? false
                 }).children.first?.parse(index: 0, tree: tree)
             
 
@@ -440,13 +456,13 @@ extension ChannelFunction: XMLDecodableWithIndex {
         // handle node resolution for each type of function
         
         // Wheel
-        self.wheel = try element.attribute(by: "Wheel")?.resolveNode(base: tree["Wheels"], tree: tree)
+        self.wheel = try tree["Wheels"].resolveNamed(element.attribute(by: "Wheel"), tree: tree)
         
         // Emitter
-        self.emitter = try element.attribute(by: "Emitter")?.resolveNode(base: tree["PhysicalDescriptions"]["Emitters"], tree: tree)
+        self.emitter = try tree["PhysicalDescriptions"]["Emitters"].resolveNamed(element.attribute(by: "Emitter"), tree: tree)
         
         // Filter
-        self.filter = try element.attribute(by: "Filter")?.resolveNode(base: tree["PhysicalDescriptions"]["Filters"], tree: tree)
+        self.filter = try tree["PhysicalDescriptions"]["Filters"].resolveNamed(element.attribute(by: "Filter"), tree: tree)
         
         // ColorSpace (default child or an AdditionalColorSpaces entry)
         self.colorSpace = try? element.attribute(by: "ColorSpace")?.resolveNode(base: tree["PhysicalDescriptions"], tree: tree)
