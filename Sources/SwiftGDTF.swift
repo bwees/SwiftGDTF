@@ -123,8 +123,13 @@ public func loadFixtureModePackage(mode: String, gdtf: Data) throws -> FixturePa
         else { throw GDTFError.dmxModeNotFound }
     
     /// Get initial description data
-    let mode: DMXMode = try modeTree.parse(tree: xmlTree)
+    var mode: DMXMode = try modeTree.parse(tree: xmlTree)
     let fixtureInfo: FixtureInfo = try xmlTree.parse(tree: xmlTree)
+
+    /// Expand multi-cell geometry (GeometryReference) so `mode.cells`/`allChannels` are
+    /// populated — matching the full `loadGDTF` path, which does this in `FixtureType.init`.
+    let geometries: [GDTFGeometry] = try xmlTree["Geometries"].parseChildrenToArray(tree: xmlTree)
+    mode.applyGeometryExpansion(geometries: geometries)
     
     ///
     /// Load the wheels associated with this mode
