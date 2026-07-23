@@ -12,19 +12,19 @@ public struct GDTFShare {
     public struct LoginResponse: Codable, Sendable {
         // Was login successful
         public let result: Bool
-        
+
         // Possible error message
         public let error: String?
-        
-        // Fun joke from the site
-        public let notice: String
-        
+
+        // Fun joke from the site (absent on failed logins)
+        public let notice: String?
+
     }
     
     public struct DMXMode: Codable, Sendable {
-        let name: String
-        let dmxFootprint: Int
-        
+        public let name: String
+        public let dmxFootprint: Int
+
         private enum CodingKeys : String, CodingKey {
             case name, dmxFootprint = "dmxfootprint"
         }
@@ -45,8 +45,8 @@ public struct GDTFShare {
         public let version: String
         public let creator: String
         
-        // Does not change across revisions
-        public let uuid: UUID
+        // Does not change across revisions (rarely null in the Share list)
+        public let uuid: UUID?
         
         public let filesize: Int
         public let modes: [DMXMode]
